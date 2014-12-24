@@ -38,7 +38,7 @@ class IndexElement(models.Model):
         return self.term
 
     def get_linked_songs_amount(self):
-        return len(self.song.objects.all())
+        return len(self.song.all())
 
     class Meta:
         ordering = ['term', ]
