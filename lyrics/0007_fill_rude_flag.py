@@ -4,53 +4,38 @@ from south.db import db
 from south.v2 import DataMigration
 from django.db import models
 import os
-import re
 from lyrics.models import Song, IndexElement
 
-# -----------------------------------------------------------------------------pymorphy
-from pymorphy.contrib import tokenizers
-from pymorphy import get_morph                      # Морф анализатор https://pythonhosted.org/pymorphy/intro.html
-from ..pymorphy_dicts_dir import ret
-morph = get_morph(ret())    # Директория со словарями для pymorphy
-
 DIR_OF_COLLECT_DATA = os.path.dirname(os.path.abspath(__file__))[:-17] + "collect_data/"
-FILE_WITH_SYNONYMS = DIR_OF_COLLECT_DATA + "synonims.txt"
+FILE_WITH_RUDES = DIR_OF_COLLECT_DATA + "rude_words.csv"
 
 
 class Migration(DataMigration):
 
     def forwards(self, orm):
+        "Write your forwards methods here."
+        f_rude = open(FILE_WITH_RUDES, "rb")
+        rude_set = set()
+        for line in f_rude:
+            rude_set.add(line.strip().decode("utf8").upper())
 
-        fi = open(FILE_WITH_SYNONYMS, "rb")
-        for line in fi:
+        for ru in rude_set:
             try:
-                term, synonyms = line.decode("cp1251")[:-2].upper().split('|', 2)
-                print term
-            except ValueError:
-                continue
-            synonyms = synonyms.split('.')[0]                   # Отсекаются всякие антонимы
-            synonyms = re.sub('\([^)]*\)', '()', synonyms)      # Отсекаются всякие слова в скобках
-            list_of_synonyms = synonyms.split(',')
-
-            # Ищем слово в базе, чтобы начать прикручивать к нему синонимы
-            try:
-                w = IndexElement.objects.get(term=term)
-
-                for s in list_of_synonyms:
-                    try:
-                        syn = IndexElement.objects.get(term=s)
-                        w.synonyms.add(syn)
-                    except IndexElement.DoesNotExist:
-                        pass
+                w = IndexElement.objects.prefetch_related('song').get(term=ru)
+                for s in w.song.all():
+                    s.rude = True
+                    s.save(update_fields=['rude'])
             except IndexElement.DoesNotExist:
                 pass
-        fi.close()
-        print "Synonyms added to database"
+
+        f_rude.close()
 
     def backwards(self, orm):
         "Write your backwards methods here."
-        for w in IndexElement.objects.all():
-            w.synonyms.clear()
+        s_list = Song.objects.all()
+        for e in s_list:
+            e.rude = False
+            e.save(update_fields=['rude'])
 
     models = {
         u'lyrics.indexelement': {

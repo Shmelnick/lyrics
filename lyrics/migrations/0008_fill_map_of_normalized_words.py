@@ -3,54 +3,54 @@ from south.utils import datetime_utils as datetime
 from south.db import db
 from south.v2 import DataMigration
 from django.db import models
-import os
-import re
 from lyrics.models import Song, IndexElement
 
 # -----------------------------------------------------------------------------pymorphy
-from pymorphy.contrib import tokenizers
+from pymorphy.contrib.tokenizers import extract_words
 from pymorphy import get_morph                      # Морф анализатор https://pythonhosted.org/pymorphy/intro.html
 from ..pymorphy_dicts_dir import ret
 morph = get_morph(ret())    # Директория со словарями для pymorphy
-
-DIR_OF_COLLECT_DATA = os.path.dirname(os.path.abspath(__file__))[:-17] + "collect_data/"
-FILE_WITH_SYNONYMS = DIR_OF_COLLECT_DATA + "synonims.txt"
 
 
 class Migration(DataMigration):
 
     def forwards(self, orm):
-
-        fi = open(FILE_WITH_SYNONYMS, "rb")
-        for line in fi:
+        "Write your forwards methods here."
+        for song in Song.objects.all():
+            to_write = list()
             try:
-                term, synonyms = line.decode("cp1251")[:-2].upper().split('|', 2)
-                print term
-            except ValueError:
-                continue
-            synonyms = synonyms.split('.')[0]                   # Отсекаются всякие антонимы
-            synonyms = re.sub('\([^)]*\)', '()', synonyms)      # Отсекаются всякие слова в скобках
-            list_of_synonyms = synonyms.split(',')
-
-            # Ищем слово в базе, чтобы начать прикручивать к нему синонимы
-            try:
-                w = IndexElement.objects.get(term=term)
-
-                for s in list_of_synonyms:
-                    try:
-                        syn = IndexElement.objects.get(term=s)
-                        w.synonyms.add(syn)
-                    except IndexElement.DoesNotExist:
-                        pass
-            except IndexElement.DoesNotExist:
+                for i, word in enumerate(extract_words(song.lyrics)):
+                    for term in morph.normalize(word.upper()):
+                        to_write.append('1 ' + str(i) + " " + term)
+            except TypeError:
                 pass
-        fi.close()
-        print "Synonyms added to database"
+            try:
+                for i, word in enumerate(extract_words(song.artist)):
+                    for term in morph.normalize(word.upper()):
+                        to_write.append('2 ' + str(i) + " " + term)
+            except TypeError:
+                pass
+            try:
+                for i, word in enumerate(extract_words(song.title)):
+                    for term in morph.normalize(word.upper()):
+                        to_write.append('3 ' + str(i) + " " + term)
+            except TypeError:
+                pass
+            try:
+                for i, word in enumerate(extract_words(song.linked_movie)):
+                    for term in morph.normalize(word.upper()):
+                        to_write.append('4 ' + str(i) + " " + term)
+            except TypeError:
+                pass
+
+            song.map_of_normalized_words = "|".join(to_write)
+            song.save(update_fields=["map_of_normalized_words"])
+            print "Done", song.id
 
     def backwards(self, orm):
-        "Write your backwards methods here."
-        for w in IndexElement.objects.all():
-            w.synonyms.clear()
+        for song in Song.objects.all():
+            song.map_of_normalized_words = ""
+            song.save(update_fields=["map_of_normalized_words"])
 
     models = {
         u'lyrics.indexelement': {
@@ -68,6 +68,7 @@ class Migration(DataMigration):
             u'id': ('django.db.models.fields.AutoField', [], {'primary_key': 'True'}),
             'linked_movie': ('django.db.models.fields.TextField', [], {'default': 'None', 'max_length': '128', 'null': 'True', 'blank': 'True'}),
             'lyrics': ('django.db.models.fields.TextField', [], {}),
+            'map_of_normalized_words': ('django.db.models.fields.TextField', [], {'default': "''"}),
             'rude': ('django.db.models.fields.BooleanField', [], {'default': 'False'}),
             'title': ('django.db.models.fields.CharField', [], {'max_length': '128'}),
             'url': ('django.db.models.fields.URLField', [], {'max_length': '100'})

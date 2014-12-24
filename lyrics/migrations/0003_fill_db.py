@@ -12,7 +12,8 @@ import csv
 # -----------------------------------------------------------------------------pymorphy
 from pymorphy.contrib import tokenizers
 from pymorphy import get_morph                      # Морф анализатор https://pythonhosted.org/pymorphy/intro.html
-morph = get_morph('/home/antre/pymorphy_dicts/')    # Директория со словарями для pymorphy
+from ..pymorphy_dicts_dir import ret
+morph = get_morph(ret())    # Директория со словарями для pymorphy
 
 DIR_OF_COLLECT_DATA = os.path.dirname(os.path.abspath(__file__))[:-17] + "collect_data/"
 FILE_WITH_SONGS_INFO = DIR_OF_COLLECT_DATA + 'songs.csv'                   # тут основная информация

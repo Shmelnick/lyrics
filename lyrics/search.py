@@ -5,11 +5,11 @@ __author__ = 'a.melnikov'
 import os
 from lyrics.models import Song, IndexElement
 
-from HTMLParser import HTMLParser
-from pymorphy import get_morph  # Морфологический анализатор https://pythonhosted.org/pymorphy/intro.html
 import argparse
+from pymorphy_dicts_dir import ret
 
-morph = get_morph('/home/enikolaev/sfera/pymorphy_dicts/')    # Директория со словарями для pymorphy
+from pymorphy import get_morph
+morph = get_morph(ret())
 RUS_LETTERS = "ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮЁ".decode('utf-8')
 
 set_of_marked_words = set()     # слова, которые можно извлечь из запроса, включая синонимы
@@ -327,21 +327,21 @@ def find_word(word):
         print "> н.ф. "
         print term
 
-        # TODO check, select related
-        index_element_from_db = IndexElement.objects.filter(term=term)
-        for e in index_element_from_db:
-            print "-----------------найдено----------------"
+        try:
+            e = IndexElement.objects.select_related("synonyms__song", "song").get(term=term)
+            print "Вариант", term
             set_of_marked_words.add(e.term)
-            for s in Song.objects.filter(indexelement=e):
+            for s in e.song.all():
                 set_of_contexts.add(s.id)
 
-               # Добавим не только вариант нормализации, но и постинг-листы всех синонимов
-
-                #for syn in note.synonyms:
-                #    set_of_marked_words.add(syn.term)
-                #    for s_e in get_posting_list(syn.posting_list):                                            #
-                #        set_of_contexts.add(s_e)
-    print "Найдено страниц для всех вариантов нормализации, включая синонимы: " + str(len(set_of_contexts))
+            # Добавление синонимов
+            for syn in e.synonyms.all():
+                set_of_marked_words.add(syn.term)
+                for sy_song in syn.song.all():
+                    set_of_contexts.add(sy_song.id)
+        except IndexElement.DoesNotExist:
+            pass
+    print "Найдено песен для вариантов слова", word, " с синонимами:", str(len(set_of_contexts))
     page_list = sorted(set_of_contexts)
 
     return page_list, len(page_list)

@@ -12,6 +12,7 @@ class Song(models.Model):
     lyrics   = models.TextField(_('lyrics'))
     linked_movie = models.TextField(_('movie'), max_length=128, blank=True, null=True, default=None)
     rude = models.BooleanField(_('rude'), default=False)
+    map_of_normalized_words = models.TextField(_('map_norm'), default="")
 
     def am_i_song_from_movie(self):
         return self.linked_movie is not None
